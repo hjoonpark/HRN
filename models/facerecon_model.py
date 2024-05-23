@@ -15,6 +15,7 @@ from pix2pix.pix2pix_model import Pix2PixModel
 from pix2pix.pix2pix_options import Pix2PixOptions
 import imageio
 
+import matplotlib.pyplot as plt
 
 class FaceReconModel(BaseModel):
 
@@ -86,7 +87,7 @@ class FaceReconModel(BaseModel):
         - define loss function, visualization images, model names, and optimizers
         """
         BaseModel.__init__(self, opt)  # call the initialization method of BaseModel
-
+        self.JP_idx = 0
         self.opt = opt
         self.visual_names = ['output_vis']
         self.model_names = ['net_recon', 'mid_net', 'high_net']
@@ -398,6 +399,30 @@ class FaceReconModel(BaseModel):
                                                                                        self.bfm_UVs.clone(),
                                                                                        self.extra_results['tex_high_gray'])
 
+
+            fig = plt.figure(figsize=(15,5))
+            ax = fig.add_subplot(131)
+            I = self.input_img
+            ax.imshow(I[0].squeeze().permute(1,2,0).detach().cpu().numpy())
+            ax.set_title("input_img {}\n({:.1f}, {:.1f})".format(list(I.shape), I.min(), I.max()))
+
+            ax = fig.add_subplot(132)
+            I = self.pred_face_mid
+            ax.imshow(I[0].squeeze().permute(1,2,0).detach().cpu().numpy())
+            ax.set_title("pred_face_mid {}\n({:.1f}, {:.1f})".format(list(I.shape), I.min(), I.max()))
+
+            ax = fig.add_subplot(133)
+            I = self.pred_face_high
+            ax.imshow(I[0].squeeze().permute(1,2,0).detach().cpu().numpy())
+            ax.set_title("pred_face_high {}\n({:.1f}, {:.1f})".format(list(I.shape), I.min(), I.max()))
+            plt.tight_layout()
+            spath = f"debug/preds_midhigh_{self.JP_idx}.jpg"
+            plt.savefig(spath)
+            self.JP_idx += 1
+            print(spath)
+            print("\n"*3)
+
+            
             # fit texture
             with torch.enable_grad():
                 texture_offset = torch.zeros((1, 3, 256, 256), dtype=torch.float32).to(

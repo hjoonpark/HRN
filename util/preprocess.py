@@ -120,7 +120,9 @@ def scale_trans(img, lm, t, s):
 
 # utils for landmark detection
 def align_for_lm(img, five_points):
+    print("-------------------------------------")
     five_points = np.array(five_points).reshape([1, 10])
+    print("align_for_lm(img={}, five_points={})".format(img.shape, five_points.shape))
     params = loadmat('util/BBRegressorParam_r.mat')
     bbox = BBRegression(five_points, params)
     assert(bbox[2] != 0)
@@ -176,7 +178,7 @@ def align_img(img, lm, lm3D, mask=None, target_size=224., rescale_factor=102.):
         lm3D               --numpy.array  (5, 3)
         mask               --PIL.Image  (raw_H, raw_W, 3)
     """
-
+    print("align_img: img={}, lm={}, lm3d={}".format(img.size, lm.shape, lm3D.shape))
     w0, h0 = img.size
     if lm.shape[0] != 5:
         lm5p = extract_5p(lm)

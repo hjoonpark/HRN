@@ -176,6 +176,7 @@ class SRenderY(nn.Module):
             faces = mesh['faces'][None, ...] - 1
             faces = torch.from_numpy(faces)
         elif rasterizer_type == 'standard':
+            assert False
             self.rasterizer = StandardRasterizer(image_size)
             self.uv_rasterizer = StandardRasterizer(uv_size)
             verts, uvcoords, faces, uvfaces = load_obj(obj_filename)

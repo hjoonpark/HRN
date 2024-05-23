@@ -15,6 +15,8 @@ import face_alignment
 import tensorflow as tf
 
 
+import matplotlib.pyplot as plt
+
 if tf.__version__ >= '2.0':
     tf = tf.compat.v1
     tf.disable_eager_execution()
@@ -52,11 +54,12 @@ class Reconstructor():
                     self.face_sess.run(tf.global_variables_initializer())
 
         self.lm3d_std = load_lm3d(opt.bfm_folder)
-
+        self.JP_idx = 0
     def read_data(self, img, lm, lm3d_std, to_tensor=True, image_res=1024, img_fat=None):
         # to RGB
         im = PIL.Image.fromarray(img[..., ::-1])
         W, H = im.size
+        
         lm[:, -1] = H - 1 - lm[:, -1]
         _, im_lr, lm_lr, _ = align_img(im, lm, lm3d_std)
         _, im_hd, lm_hd, _ = align_img(im, lm, lm3d_std, target_size=image_res, rescale_factor=102. * image_res / 224)
@@ -74,6 +77,16 @@ class Reconstructor():
             mask_lr = torch.tensor(np.array(mask_lr) / 255., dtype=torch.float32)[None, None, :, :]
             lm_lr = torch.tensor(lm_lr).unsqueeze(0)
             lm_hd = torch.tensor(lm_hd).unsqueeze(0)
+
+        # plt.figure()
+        im_lr2 = im_lr.squeeze().permute(1,2,0).numpy()
+        lm_lr2 = lm_lr.squeeze().numpy()
+        lm_lr2[:, -1] = im_lr2.shape[0] - 1 - lm_lr2[:, -1]
+        # plt.imshow(im_lr2)
+        # plt.title("{} | ({:.1f}, {:.1f})".format(im_lr2.shape, im_lr2.min(), im_lr2.max()))
+        # plt.scatter(lm_lr2[:,0], lm_lr2[:,1])
+        # plt.savefig(f"debug/align_img_output_{self.JP_idx}.jpg", dpi=150)
+        # self.JP_idx += 1
         return im_lr, lm_lr, im_hd, lm_hd, mask_lr
 
     def parse_label(self, label):
@@ -86,12 +99,15 @@ class Reconstructor():
             return None
 
         # detect landmarks
-        input_img = np.reshape(
-            input_img, [1, 224, 224, 3]).astype(np.float32)
+        input_img = np.reshape(input_img, [1, 224, 224, 3]).astype(np.float32)
 
         input_img = input_img[0, :, :, ::-1]
+        plt.figure()
+        plt.imshow(input_img.astype(np.uint8))
+        plt.title(f"{input_img.shape} ({input_img.min():.1f}, {input_img.max():.1f}) {input_img.dtype}")
+        plt.savefig("debug/lm_sess_input.jpg")
+        
         landmark = lm_sess.get_landmarks_from_image(input_img)[0]
-
         landmark = landmark[:, :2] / scale
         landmark[:, 0] = landmark[:, 0] + bbox[0]
         landmark[:, 1] = landmark[:, 1] + bbox[1]
@@ -100,21 +116,24 @@ class Reconstructor():
         # att_mask = skinmask(img)
         # att_mask = PIL.Image.fromarray(cv2.cvtColor(att_mask,cv2.COLOR_BGR2RGB))
         # print('get att_mask', time.time() - t1)
-
         return landmark
 
     def get_img_for_texture(self, input_img_tensor):
-        input_img = input_img_tensor.permute(0, 2, 3, 1).detach().cpu().numpy()[0] * 255.
-        input_img = input_img.astype(np.uint8)
+    #     input_img = input_img_tensor.permute(0, 2, 3, 1).detach().cpu().numpy()[0] * 255.
+    #     input_img = input_img.astype(np.uint8)
 
-        input_img_for_texture = self.face_mark_model.fat_face(input_img, degree=0.03)
-        input_img_for_texture_tensor = torch.tensor(np.array(input_img_for_texture) / 255., dtype=torch.float32).permute(2, 0, 1).unsqueeze(0)
-        input_img_for_texture_tensor = input_img_for_texture_tensor.to(self.model.device)
+    #     input_img_for_texture = self.face_mark_model.fat_face(input_img, degree=0.03)
+    #     input_img_for_texture_tensor = torch.tensor(np.array(input_img_for_texture) / 255., dtype=torch.float32).permute(2, 0, 1).unsqueeze(0)
+    #     input_img_for_texture_tensor = input_img_for_texture_tensor.to(self.model.device)
+    #     print(input_img_for_texture_tensor.shape, input_img_for_texture_tensor.min().item(), input_img_for_texture_tensor.max().item())
+        # assert 0
+        input_img_for_texture_tensor = torch.zeros((1, 3, 224, 224), dtype=torch.float32)
         return input_img_for_texture_tensor
 
 
     def predict_base(self, img, out_dir=None, save_name=''):
-
+        print(">>>> predict_base")
+        # img: (1024, 1024, 3) uint8 [0, 255]
         timestamp = time.strftime("%Y%m%d-%H%M%S", time.localtime())
         if save_name:
             img_name = save_name
@@ -124,12 +143,23 @@ class Reconstructor():
         # img_ori = img.copy()
         if img.shape[0] > 2000 or img.shape[1] > 2000:
             img, _ = resize_on_long_side(img, 1500)
-
-        # if out_dir is not None:
-        #     img_path = os.path.join(out_dir, img_name + '_img.jpg')
-        #     cv2.imwrite(img_path, img)
+        if out_dir is not None:
+            img_path = os.path.join(out_dir, img_name + '_img.jpg')
+            cv2.imwrite(img_path, img)
 
         box, results = self.face_mark_model.infer(img)
+        
+        # plt.figure()
+        # r = results[0]
+        # plt.imshow(img)
+        # plt.scatter(r[:,0], r[:,1])
+        # x1, y1 = box[0]["x1"], box[0]["y1"]
+        # x2, y2 = box[0]["x2"], box[0]["y2"]
+        # plt.scatter(x1, y1)
+        # plt.scatter(x2, y2)
+        # save_dir = "debug"
+        # os.makedirs(save_dir, exist_ok=1)
+        # plt.savefig("debug/face_marks.jpg", dpi=150)
 
         if results is None or np.array(results).shape[0] == 0:
             return {}
@@ -234,9 +264,9 @@ class Reconstructor():
         return output
 
     def predict(self, img, visualize=False, out_dir=None, save_name=''):
+        print(">> 1 predict")
         with torch.no_grad():
             output = self.predict_base(img)
-
             output['input_img_for_tex'] = self.get_img_for_texture(output['input_img'])
 
             hrn_input = {
@@ -251,7 +281,6 @@ class Reconstructor():
                 'tex_valid_mask': output['tex_valid_mask'],
                 'de_retouched_albedo_map': output['de_retouched_albedo_map']
             }
-
             self.model.set_input_hrn(hrn_input)
             self.model.get_edge_points_horizontal()
 
@@ -270,6 +299,7 @@ class Reconstructor():
         return output
 
     def predict_multi_view(self, img_list, visualize=False, out_dir=None, save_name='test'):
+        assert 0
         with torch.no_grad():
             output = {}
             self.model.init_mvhrn_input()

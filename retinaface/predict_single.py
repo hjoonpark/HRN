@@ -1,3 +1,4 @@
+import os
 from typing import Dict, List, Union
 
 import albumentations as A
@@ -12,6 +13,7 @@ from .prior_box import priorbox
 from .utils import tensor_from_rgb_image, pad_to_size, unpad_from_size
 
 
+import matplotlib.pyplot as plt
 class Model:
 
     def __init__(self, max_size: int = 960, device: str = 'cpu') -> None:
@@ -38,6 +40,7 @@ class Model:
             image_size=(self.max_size, self.max_size),
         ).to(device)
         self.variance = [0.1, 0.2]
+        self.img_idx_JP = 0
 
     def load_state_dict(self, state_dict: Dict[str, torch.Tensor]) -> None:
         self.model.load_state_dict(state_dict)
@@ -59,19 +62,16 @@ class Model:
             scale_bboxes = torch.from_numpy(
                 np.tile([self.max_size, self.max_size],
                         2)).to(self.device).float()
-
             transformed_image = self.transform(image=image)['image']
 
-            paded = pad_to_size(
-                target_size=(self.max_size, self.max_size),
-                image=transformed_image)
+            paded = pad_to_size(target_size=(self.max_size, self.max_size),image=transformed_image)
 
             pads = paded['pads']
 
-            torched_image = tensor_from_rgb_image(paded['image']).to(
-                self.device)
+            torched_image = tensor_from_rgb_image(paded['image']).unsqueeze(0).to(self.device)
 
-            loc, conf, land = self.model(torched_image.unsqueeze(0))
+            loc, conf, land = self.model(torched_image)
+
 
             conf = F.softmax(conf, dim=-1)
 
@@ -144,4 +144,35 @@ class Model:
                     landmarks[box_id].reshape(-1, 2).tolist(),
                 }]
 
+            # fig = plt.figure()
+            # ax1 = fig.add_subplot(121)
+            # ax1.imshow(image)
+            # ax1.set_title("{} {} ({:.1f}, {:.1f})".format(self.img_idx_JP, image.shape, image.min(), image.max()))
+            
+            # I = torched_image.cpu().squeeze().permute(1,2,0).numpy()
+            # ax2 = fig.add_subplot(122)
+            # ax2.imshow(I)
+            # ax2.set_title("{} {} ({:.1f}, {:.1f})".format(self.img_idx_JP, torched_image.shape, torched_image.min(), torched_image.max()))
+
+            # for a in annotations:
+            #     if len(a.keys()) > 0:
+            #         box = a["bbox"]
+            #         score = a["score"]
+            #         lmks = a["landmarks"]
+            #         box = np.array(box)
+            #         lmks = np.array(lmks)
+            #         if len(lmks) > 0:
+            #             for ax in [ax1,ax2]:
+            #                 ax.plot([box[0], box[2]], [box[1], box[1]], c='r')
+            #                 ax.plot([box[0], box[2]], [box[3], box[3]], c='r')
+            #                 ax.plot([box[0], box[0]], [box[1], box[3]], c='r')
+            #                 ax.plot([box[2], box[2]], [box[1], box[3]], c='r')
+            #                 ax.scatter(lmks[:,0], lmks[:,1], c='b')
+
+            # save_dir = "debug"
+            # os.makedirs(save_dir, exist_ok=True)
+            # save_path = os.path.join(save_dir, f'pred_{self.img_idx_JP:03d}.jpg')
+            # self.img_idx_JP += 1
+            # plt.savefig(save_path, dpi=150)
+            # print(save_path)
             return annotations

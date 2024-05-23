@@ -6,6 +6,7 @@ import argparse
 
 
 def run_hrn(args):
+    os.makedirs("debug", exist_ok=1)
     params = [
         '--checkpoints_dir', args.checkpoints_dir,
         '--name', args.name,
@@ -16,15 +17,12 @@ def run_hrn(args):
 
     names = sorted([name for name in os.listdir(args.input_root) if '.jpg' in name or '.png' in name or '.jpeg' in name or '.PNG' in name or '.JPG' in name or '.JPEG' in name])
 
-    print('predict', args.input_root)
-
     for ind, name in enumerate(tqdm(names)):
         save_name = os.path.splitext(name)[0]
         out_dir = os.path.join(args.output_root, save_name)
         os.makedirs(out_dir, exist_ok=True)
         img = cv2.imread(os.path.join(args.input_root, name))
         output = reconstructor.predict(img, visualize=True, save_name=save_name, out_dir=out_dir)
-
     print('results are saved to:', args.output_root)
 
 

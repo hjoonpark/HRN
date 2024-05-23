@@ -6,7 +6,8 @@ from util.load_mats import transferBFM09
 import os
 from util.renderer import SRenderY, set_rasterizer
 from util import deca_util
-
+import imageio
+import matplotlib.pyplot as plt
 
 def perspective_projection(focal, center):
     # return p.T (N, 3) @ (3, 3) 
@@ -204,6 +205,13 @@ class ParametricFaceModel:
         return face_color
 
     def compute_color_map(self, face_texture_uv, face_norm_uv, gamma):
+        print("face_norm_uv:", face_norm_uv.shape, face_norm_uv.min() ,face_norm_uv.max())
+        assert 0
+        # x = self.normalize(face_texture_uv.detach().cpu().squeeze().permute((1,2,0)).numpy())
+        # imageio.imsave("_debug_tex/face_texture_uv2.png", x)
+
+        # x = self.normalize(face_norm_uv)
+        # imageio.imsave("_debug_tex/face_norm_uv2.png", x)
         face_texture_uv = face_texture_uv.permute(0, 2, 3, 1).contiguous()  # (B, 256, 256, 3)
         face_norm_uv = face_norm_uv.permute(0, 2, 3, 1).contiguous()  # (B, 256, 256, 3)
         size = face_texture_uv.shape[1]
@@ -263,10 +271,44 @@ class ParametricFaceModel:
         # uv_detail_normals = uv_coarse_normals
         return uv_detail_normals
 
+    def normalize(self,x):
+        x = 255.0*(x-x.min())/(x.max()-x.min())
+        x = x.astype(np.uint8)
+        return x
+
     def compute_color_with_displacement(self, face_texture_uv, verts, normals, displacement_uv, gamma):
 
+        # odir = "_debug_tex"
+        # print()
+        # print("face_texture_uv:", face_texture_uv.shape)
+        # x = face_texture_uv.detach().cpu().squeeze().permute((1,2,0)).numpy()
+        # x = self.normalize(x)
+        # imageio.imsave("_debug_tex/face_texture_uv.png", x)
+        
+        # print("verts:", verts.shape)
+        # print("normals:", normals.shape)
+        # print("displacement_uv:", displacement_uv.shape)
+
+        # x = displacement_uv.detach().cpu().squeeze().unsqueeze(0).permute((1,2,0)).numpy()
+        # x = self.normalize(x)
+        # plt.figure()
+        # plt.imshow(x)
+        # plt.savefig("_debug_tex/displacement_uv.png", dpi=300)
+        # print("gamma:", gamma.shape)
+
         uv_detail_normals = self.displacement2normal(displacement_uv, verts, normals)  # verts: (B, n, 3), ops['normals']: (B, n, 3), uv_detail_normals: (B, 3, 256, 256)
+        # x = uv_detail_normals.detach().cpu().squeeze().permute((1,2,0)).numpy()
+        # x = self.normalize(x)
+        # imageio.imsave("_debug_tex/uv_detail_normals.png", x)
+        
         uv_texture = self.compute_color_map(face_texture_uv, uv_detail_normals, gamma)
+        # x = uv_texture.detach().cpu().squeeze().permute((1,2,0)).numpy()
+        # x = self.normalize(x)
+        # imageio.imsave("_debug_tex/uv_texture.png", x)
+        
+        # print("uv_detail_normals:", uv_detail_normals.shape)
+        # print("uv_texture:", uv_texture.shape)
+        # print()
         return uv_texture
 
     def compute_rotation(self, angles):
@@ -456,8 +498,14 @@ class ParametricFaceModel:
         # face_texture = self.compute_albedo(coef_dict['tex'])
         face_albedo_map = self.compute_albedo_map(coef_dict['tex'])  # (1, 512, 512, 3)
         face_albedo_map = face_albedo_map.permute(0, 3, 1, 2)
+        # face_albedo_map = self.normalize(face_albedo_map.detach().cpu().squeeze().permute((1,2,0)).numpy())
+        # imageio.imsave("_debug_tex/face_albedo_map.png", face_albedo_map)
+        # assert 0
         face_albedo_map = torch.nn.functional.interpolate(face_albedo_map, [self.render.uv_size, self.render.uv_size], mode='bilinear')
+        print("JP: face_norm_roted:", face_norm_roted.shape, face_norm_roted.min().item(), face_norm_roted.max().item())
         face_norm_roted_uv = self.render.world2uv(face_norm_roted)
+        print("JP: face_norm_roted_uv:", face_norm_roted_uv.shape, face_norm_roted_uv.min().item(), face_norm_roted_uv.max().item())
+        # face_norm_roted_uv = self.normalize(face_norm_roted_uv.detach().cpu().squeeze().permute((1,2,0)).numpy())
         face_color_map = self.compute_color_map(face_albedo_map, face_norm_roted_uv, coef_dict['gamma'])
 
         position_map = self.render.world2uv(face_shape)
